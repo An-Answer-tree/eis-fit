@@ -1,0 +1,29 @@
+[project]
+name = "eis-fit"
+version = "0.1.0"
+description = "Reusable electrochemical impedance spectroscopy fitting library."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "draccus>=0.11.5",
+    "matplotlib>=3.8",
+    "numpy>=1.26",
+    "torch>=2.1",
+]
+
+[project.scripts]
+eis-fit = "eis_fit.trainer:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+eis_fit = ["py.typed"]

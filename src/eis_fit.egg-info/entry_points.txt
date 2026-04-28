@@ -1,0 +1,2 @@
+[console_scripts]
+eis-fit = eis_fit.trainer:main
