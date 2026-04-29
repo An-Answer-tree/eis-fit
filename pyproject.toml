@@ -9,6 +9,7 @@ dependencies = [
     "matplotlib>=3.8",
     "numpy>=1.26",
     "torch>=2.1",
+    "tqdm>=4.66",
 ]
 
 [project.scripts]
@@ -24,6 +25,3 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.setuptools.package-data]
-eis_fit = ["py.typed"]

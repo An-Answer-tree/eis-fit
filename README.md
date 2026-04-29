@@ -12,34 +12,54 @@ The runtime entry point lives in `trainer.py`, and all runtime settings live in
 ## Install
 
 Use the existing `chemistry` conda environment and install the package in
-editable mode:
+editable mode. This installs the runtime dependencies declared in
+`pyproject.toml`, including `draccus`, `torch`, and `tqdm`:
 
 ```powershell
 conda run -n chemistry python -m pip install -e .
 ```
 
-## Run
+If you are already inside the `chemistry` environment, run:
 
-Fit a ZView/Z60W-style text file:
-
-```powershell
-conda run -n chemistry python -m eis_fit.trainer `
-  --input_path C:\Users\tong.liu\Desktop\EA-2.txt `
-  --output_root .\outputs
+```bash
+python -m pip install -e .
 ```
 
-GPU is the default device. If you explicitly need CPU for debugging or tests,
-pass `--device cpu`.
+If `python -m eis_fit.trainer` fails with `ModuleNotFoundError: draccus` or
+`ModuleNotFoundError: tqdm`, the environment has not installed the project
+dependencies yet; run the editable install command above.
 
-Nested configuration can be overridden directly from the command line through
+## Run
+
+The default input file is configured in `src/eis_fit/config.py`:
+
+```python
+input_path: Path = Path("data/EA-2.txt")
+```
+
+Fit that file with:
+
+```powershell
+conda run -n chemistry python -m eis_fit.trainer
+```
+
+CPU is the default device because the local fitting workflow is configured for
+this machine. If CUDA is available and you explicitly want GPU training, pass
+`--device cuda`.
+
+Configuration values can still be overridden directly from the command line through
 `draccus`. For example:
 
 ```powershell
 conda run -n chemistry python -m eis_fit.trainer `
-  --input_path C:\Users\tong.liu\Desktop\EA-2.txt `
-  --training.restarts 8 `
+  --input_path .\data\EA-2.txt `
+  --restarts 8 `
   --generate_plots false
 ```
+
+Training progress is shown with `tqdm` progress bars for the restart loop, the
+Adam phase, and the LBFGS refinement phase. The progress postfix reports the
+current loss, the best loss for that restart, and the early-stopping wait count.
 
 By default, the fitter also drops a leading high-frequency prefix with positive
 imaginary impedance before optimization. That preprocessing is enabled because
@@ -61,7 +81,8 @@ from pathlib import Path
 from eis_fit.config import ChemistryConstraints, FitConfig, ParameterBounds
 
 config = FitConfig(
-    input_path=Path(r"C:\Users\tong.liu\Desktop\EA-2.txt"),
+    input_path=Path("data/EA-2.txt"),
+    restarts=8,
     bounds=ParameterBounds(
         rsei=(1.0, 120.0),
         rct=(50.0, 600.0),
@@ -91,7 +112,7 @@ transfer`.
 An equivalent console script is also installed:
 
 ```powershell
-conda run -n chemistry eis-fit --input_path C:\Users\tong.liu\Desktop\EA-2.txt
+conda run -n chemistry eis-fit --input_path .\data\EA-2.txt
 ```
 
 ## Outputs

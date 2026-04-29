@@ -10,12 +10,39 @@ import torch
 from torch import nn
 
 from eis_fit.config import ParameterBounds, ParameterRange
-from eis_fit.config_runtime import parameter_bounds_dict, resolve_parameter_range
+
+
+_LINEAR_SCALE_PARAMETERS = frozenset({"cpe1_p", "cpe2_p", "w1_p"})
+_PARAMETER_NAMES = (
+    "rs",
+    "rsei",
+    "cpe1_t",
+    "cpe1_p",
+    "rct",
+    "cpe2_t",
+    "cpe2_p",
+    "w1_r",
+    "w1_t",
+    "w1_p",
+)
 
 
 @dataclass(slots=True, frozen=True)
 class CircuitParameters:
-    """Concrete circuit parameters expressed in physical units."""
+    """Concrete circuit parameters expressed in physical units.
+
+    Attributes:
+        rs: Series resistance.
+        rsei: SEI-film resistance.
+        cpe1_t: First constant-phase element coefficient.
+        cpe1_p: First constant-phase element exponent.
+        rct: Charge-transfer resistance.
+        cpe2_t: Second constant-phase element coefficient.
+        cpe2_p: Second constant-phase element exponent.
+        w1_r: Finite-length Warburg resistance.
+        w1_t: Finite-length Warburg time constant.
+        w1_p: Finite-length Warburg exponent.
+    """
 
     rs: float
     rsei: float
@@ -101,9 +128,17 @@ class EquivalentCircuitModel(nn.Module):
         complex_dtype: torch.dtype,
         seed: int,
     ) -> None:
-        """Initializes the model and randomly samples a parameter start point."""
+        """Initializes the model and randomly samples a parameter start point.
+
+        Args:
+            bounds: Hard bounds used to constrain trainable parameters.
+            device: Torch device for model parameters.
+            real_dtype: Floating-point dtype for real-valued tensors.
+            complex_dtype: Complex dtype for impedance tensors.
+            seed: Random seed for initial parameter sampling.
+        """
         super().__init__()
-        self._bounds_by_name = parameter_bounds_dict(bounds)
+        self._bounds_by_name = _parameter_bounds_dict(bounds)
         self._device = device
         self._real_dtype = real_dtype
         self._complex_dtype = complex_dtype
@@ -226,7 +261,7 @@ def _complex_frequency_power(
 
 def _sample_range(name: str, bounds: ParameterRange, rng: random.Random) -> float:
     """Samples one random value from the provided bounds."""
-    lower, upper, log_scale = resolve_parameter_range(name, bounds)
+    lower, upper, log_scale = _resolve_parameter_range(name, bounds)
     if log_scale:
         log_lower = math.log(lower)
         log_upper = math.log(upper)
@@ -237,7 +272,7 @@ def _sample_range(name: str, bounds: ParameterRange, rng: random.Random) -> floa
 def _transform_parameter(name: str, raw_value: torch.Tensor, bounds: ParameterRange) -> torch.Tensor:
     """Maps an unconstrained scalar into the target bounds."""
     unit_value = torch.sigmoid(raw_value)
-    lower, upper, log_scale = resolve_parameter_range(name, bounds)
+    lower, upper, log_scale = _resolve_parameter_range(name, bounds)
     if log_scale:
         log_lower = math.log(lower)
         log_upper = math.log(upper)
@@ -248,7 +283,7 @@ def _transform_parameter(name: str, raw_value: torch.Tensor, bounds: ParameterRa
 def _inverse_transform(name: str, value: float, bounds: ParameterRange) -> float:
     """Maps a bounded scalar back into the unconstrained optimization space."""
     epsilon = 1e-6
-    lower, upper, log_scale = resolve_parameter_range(name, bounds)
+    lower, upper, log_scale = _resolve_parameter_range(name, bounds)
     if log_scale:
         log_lower = math.log(lower)
         log_upper = math.log(upper)
@@ -257,3 +292,25 @@ def _inverse_transform(name: str, value: float, bounds: ParameterRange) -> float
         unit_value = (value - lower) / (upper - lower)
     unit_value = min(max(unit_value, epsilon), 1.0 - epsilon)
     return math.log(unit_value / (1.0 - unit_value))
+
+
+def _parameter_bounds_dict(bounds: ParameterBounds) -> dict[str, ParameterRange]:
+    """Returns hard bounds by parameter name."""
+    return {name: getattr(bounds, name) for name in _PARAMETER_NAMES}
+
+
+def _resolve_parameter_range(name: str, value: ParameterRange) -> tuple[float, float, bool]:
+    """Returns normalized hard-bound data for one parameter.
+
+    Args:
+        name: Parameter name used to choose the default scale.
+        value: Bound tuple in ``(lower, upper)`` or
+            ``(lower, upper, log_scale)`` form.
+
+    Returns:
+        A tuple of ``(lower, upper, log_scale)``.
+    """
+    lower = float(value[0])
+    upper = float(value[1])
+    log_scale = bool(value[2]) if len(value) > 2 else name not in _LINEAR_SCALE_PARAMETERS
+    return lower, upper, log_scale

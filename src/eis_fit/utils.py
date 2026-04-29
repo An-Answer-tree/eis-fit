@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import csv
 import json
+from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import matplotlib
 
@@ -15,7 +17,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from eis_fit.config import FitConfig
-from eis_fit.config_runtime import config_to_dict, resolve_output_dir
 from eis_fit.data import ImpedanceDataset
 
 if TYPE_CHECKING:
@@ -37,11 +38,21 @@ _MARKER_SIZE = 4.0
 _LINE_WIDTH = 2.0
 _NYQUIST_TITLE = "Nyquist Plot"
 _BODE_TITLE = "Bode Plot"
+_TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
 
 
 def write_fit_outputs(dataset: ImpedanceDataset, result: FitResult, config: FitConfig) -> Path:
-    """Writes the standard output artifacts for one fit run."""
-    output_dir = resolve_output_dir(config)
+    """Writes the standard output artifacts for one fit run.
+
+    Args:
+        dataset: Original measured impedance dataset.
+        result: Fitting result to serialize.
+        config: Runtime configuration used for the fit.
+
+    Returns:
+        Timestamped output directory.
+    """
+    output_dir = _resolve_output_dir(config)
     output_dir.mkdir(parents=True, exist_ok=False)
     result.output_dir = output_dir
 
@@ -61,7 +72,13 @@ def write_fit_plots(
     dataset: ImpedanceDataset,
     fitted_impedance: np.ndarray,
 ) -> None:
-    """Writes Nyquist and Bode plots for one fit run."""
+    """Writes Nyquist and Bode plots for one fit run.
+
+    Args:
+        output_dir: Directory that receives plot files.
+        dataset: Original measured impedance dataset.
+        fitted_impedance: Complex fitted impedance values.
+    """
     _write_nyquist_plot(output_dir / _NYQUIST_FILENAME, dataset, fitted_impedance)
     _write_bode_plot(output_dir / _BODE_FILENAME, dataset, fitted_impedance)
 
@@ -78,7 +95,7 @@ def _write_best_params(path: Path, result: FitResult, config: FitConfig) -> None
         "skipped_prefix_points": result.skipped_prefix_points,
         "output_dir": str(result.output_dir) if result.output_dir is not None else None,
         "parameters": result.best_parameters.to_dict(),
-        "config": config_to_dict(config),
+        "config": _config_to_dict(config),
     }
     with path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
@@ -166,6 +183,51 @@ def _write_nyquist_plot(
     figure.tight_layout()
     figure.savefig(output_path, dpi=_FIGURE_DPI)
     plt.close(figure)
+
+
+def _resolve_output_dir(config: FitConfig) -> Path:
+    """Builds a timestamped output directory path for one run.
+
+    Args:
+        config: Runtime configuration.
+
+    Returns:
+        Timestamped output directory path under ``config.output_root``.
+    """
+    timestamp = datetime.now().strftime(_TIMESTAMP_FORMAT)
+    return Path(config.output_root) / timestamp
+
+
+def _config_to_dict(config: FitConfig) -> dict[str, Any]:
+    """Serializes config data into JSON-safe values.
+
+    Args:
+        config: Runtime configuration.
+
+    Returns:
+        JSON-safe dictionary representation.
+    """
+    return _serialize(asdict(config))
+
+
+def _serialize(value: Any) -> Any:
+    """Recursively converts dataclass values into JSON-safe primitives.
+
+    Args:
+        value: Value to serialize.
+
+    Returns:
+        JSON-safe value.
+    """
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {key: _serialize(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_serialize(item) for item in value]
+    if isinstance(value, list):
+        return [_serialize(item) for item in value]
+    return value
 
 
 def _write_bode_plot(

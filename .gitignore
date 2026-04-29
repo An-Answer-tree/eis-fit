@@ -1,1 +1,39 @@
 *.zip
+
+# Python bytecode and interpreter caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python build and package metadata
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Editable installs and virtual environments
+.eggs/
+.venv/
+venv/
+env/
+
+# Test, type-check, and lint caches
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+
+# Runtime outputs
+outputs/
+
+# Local OS/editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Local environment files
+.env
+.env.*
